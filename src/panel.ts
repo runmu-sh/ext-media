@@ -1,12 +1,13 @@
 /**
  * The Media panel as a Vue component (render functions; `vue` is the host's own instance through the import
- * map). Composed as Underspire's: a NOW PLAYING block (accent bottom rule) with the tracks and [ STOP ], the
- * volume row (VOL label, struck through when muted or at 0; slider; value), then the IMAGES block with a clear
- * tool and a 72px thumbnail grid.
+ * map). Composed as Underspire's: a NOW PLAYING block (accent bottom rule) whose head has [ STOP ] (everything)
+ * while something plays, the tracks (title linking to the file, [ STOP ] each), the volume row (VOL label,
+ * struck through when muted or at 0; slider; the bare value), then the IMAGES block with [ CLEAR ] and a 72px
+ * thumbnail grid.
  */
 import { defineComponent, h, onBeforeUnmount, shallowRef, watch } from 'vue';
 import type { Dispose, MediaView, Mu } from '@muclient/sdk';
-import { COPY, imageTitle, isStruck, pctOf, titleOf, tracksOf, volumePatch, volumeText } from './model.ts';
+import { COPY, imageTitle, isStruck, linkOf, pctOf, titleOf, tracksOf, volumePatch, volumeValue } from './model.ts';
 
 export function createPanel(mu: Mu) {
   const c = mu.ui.css;
@@ -42,12 +43,19 @@ export function createPanel(mu: Mu) {
 
         return h('section', { class: 'mu-media', 'aria-label': COPY.title, 'data-testid': 'media' }, [
           h('div', { class: 'np' }, [
-            head(COPY.nowPlaying),
+            head(COPY.nowPlaying, tracks.length
+              ? h('button', {
+                type: 'button', class: `${c.cmd} x`, 'aria-label': COPY.stopAll, 'data-testid': 'media-stop',
+                onClick: () => { if (sid) mu.media.stop({}, sid); },
+              }, COPY.stopLabel)
+              : null),
             tracks.length
               ? h('ul', { class: 'tracks', 'data-testid': 'media-tracks' }, tracks.map((t) =>
                 h('li', { key: t.kind + t.key, class: t.kind }, [
                   h('span', { class: 'g', 'aria-hidden': 'true' }, '♪'),
-                  h('span', { class: 't' }, titleOf(t)),
+                  linkOf(t.url)
+                    ? h('a', { class: 't', href: t.url, target: '_blank', rel: 'noopener', title: t.url }, titleOf(t))
+                    : h('span', { class: 't' }, titleOf(t)),
                   h('span', { class: 'k' }, t.kind),
                   h('button', {
                     type: 'button', class: `${c.cmd} x`, 'aria-label': COPY.stop(titleOf(t)),
@@ -62,12 +70,12 @@ export function createPanel(mu: Mu) {
                 type: 'range', min: 0, max: 100, step: 1, class: 'rng', value: pct, style: { '--p': `${pct}%` },
                 'aria-label': COPY.volume, 'data-testid': 'media-volume', onInput: onVolume,
               }),
-              h('span', { class: 'vval' }, volumeText(muted, pct)),
+              h('span', { class: 'vval' }, volumeValue(muted, pct)),
             ]),
           ]),
           h('div', { class: 'gallery' }, [
             head(COPY.images, images.length
-              ? h('button', { type: 'button', class: `${c.cmd} x`, onClick: () => { if (sid) mu.media.clearImages(sid); } }, COPY.clear)
+              ? h('button', { type: 'button', class: `${c.cmd} x`, 'aria-label': COPY.clearLabel, 'data-testid': 'media-clear', onClick: () => { if (sid) mu.media.clearImages(sid); } }, COPY.clear)
               : null),
             images.length
               ? h('div', { class: 'grid', 'data-testid': 'media-gallery' }, images.map((i) =>

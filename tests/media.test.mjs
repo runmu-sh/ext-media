@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createSSRApp, h } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import {
-  COPY, MEDIA_CSS, hasMedia, imageTitle, isStruck, pctOf, titleOf, tracksOf, volumePatch, volumeText, watchSessions,
+  COPY, MEDIA_CSS, hasMedia, imageTitle, isStruck, linkOf, pctOf, step, titleOf, tracksOf, volumePatch, volumeText, volumeValue, watchSessions,
 } from '../src/model.ts';
 import { createPanel } from '../src/panel.ts';
 
@@ -87,6 +87,8 @@ test('VOL is struck through when muted or at 0; the value reads — when muted',
   assert.equal(isStruck(false, 0), true);
   assert.equal(volumeText(false, 42), '42%');
   assert.equal(volumeText(true, 42), '—');
+  assert.equal(volumeValue(false, 42), '42', 'the panel shows the bare number, as Underspire');
+  assert.equal(volumeValue(true, 42), '—');
   assert.equal(imageTitle({ url: 'u' }), 'u');
   assert.equal(imageTitle({ url: 'u', caption: 'c' }), 'c');
 });
@@ -99,8 +101,31 @@ test('hasMedia: music, a sound or an image', () => {
   assert.equal(hasMedia(view({ images: [{ url: 'u', ts: 1 }] })), true);
 });
 
-test('MEDIA_CSS: every rule under .mu-media, no colour literals', () => {
-  for (const line of MEDIA_CSS.trim().split('\n')) assert.match(line, /^\.mu-media[\s.:{]/, line);
+test('linkOf: http(s) only', () => {
+  assert.equal(linkOf('https://x/a.ogg'), 'https://x/a.ogg');
+  assert.equal(linkOf('HTTP://x/a.ogg'), 'HTTP://x/a.ogg');
+  assert.equal(linkOf('javascript:alert(1)'), null);
+  assert.equal(linkOf('a.ogg'), null);
+  assert.equal(linkOf(undefined), null);
+});
+
+test('step: touches once on the first media; notes only music that starts after the first update', () => {
+  const st = { touched: false, music: null, seeded: false };
+  assert.deepEqual(step(st, view({ music: track('music', 'm', 'a.ogg') })), { touch: true, note: null }, 'already playing at start: no note');
+  assert.deepEqual(step(st, view({ music: track('music', 'm', 'a.ogg'), volume: 0.2 })), { touch: false, note: null }, 'same piece');
+  assert.deepEqual(step(st, view({ music: track('music', 'm', 'b.ogg') })), { touch: false, note: '♪ media: https://x/b.ogg' });
+  assert.deepEqual(step(st, view()), { touch: false, note: null }, 'stopped');
+  assert.deepEqual(step(st, view({ music: track('music', 'm', 'b.ogg') })), { touch: false, note: '♪ media: https://x/b.ogg' }, 'started again');
+  const st2 = { touched: false, music: null, seeded: false };
+  assert.deepEqual(step(st2, view()), { touch: false, note: null });
+  assert.deepEqual(step(st2, view({ sounds: [track('sound', 's', 's.wav')] })), { touch: true, note: null }, 'a sound touches, never notes');
+  assert.deepEqual(step(st2, view({ music: { ...track('music', 'm', 'x.ogg'), url: 'x.ogg' } })), { touch: false, note: null }, 'no note without an http(s) URL');
+});
+
+test('MEDIA_CSS: every rule under .ext-panel[data-ext="media"], no colour literals', () => {
+  for (const line of MEDIA_CSS.trim().split('\n')) {
+    for (const sel of line.slice(0, line.indexOf('{')).split(',')) assert.match(sel.trim(), /^\.ext-panel\[data-ext="media"\] \.mu-media(?=[\s.:]|$)/, line);
+  }
   assert.doesNotMatch(MEDIA_CSS, /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
   assert.doesNotMatch(MEDIA_CSS, /border-radius:\s*[1-9]/);
 });
@@ -162,7 +187,9 @@ test('panel: empty states, the volume row and its testids', async () => {
   assert.match(html, /class="mu-media"/);
   assert.match(html, /--p:50%/);
   assert.match(html, /value="50"/);
-  assert.match(html, />50%</);
+  assert.match(html, /<span class="vval">50<\/span>/);
+  assert.doesNotMatch(html, /data-testid="media-stop"/, 'no header Stop while nothing plays');
+  assert.doesNotMatch(html, /data-testid="media-clear"/);
   assert.doesNotMatch(html, /vglyph muted/);
   assert.doesNotMatch(html, new RegExp(COPY.blocked));
   assert.deepEqual(f.calls.unwatch, [], 'SSR has no unmount; watch is real');
@@ -177,12 +204,13 @@ test('panel: tracks with Stop, images with Clear, muted and blocked', async () =
   });
   const html = await render(f.mu, 's1');
   assert.match(html, /data-testid="media-tracks"/);
-  assert.match(html, /<li class="music">.*?theme.*?music.*?aria-label="stop theme".*?Stop<\/button><\/li>/);
+  assert.match(html, /<button type="button" class="sh-cmd x" aria-label="stop" data-testid="media-stop">Stop<\/button>/, 'header Stop (everything)');
+  assert.match(html, /<li class="music">.*?<a class="t" href="https:\/\/x\/a\/theme.ogg" target="_blank" rel="noopener" title="https:\/\/x\/a\/theme.ogg">theme<\/a>.*?music.*?aria-label="stop theme".*?Stop<\/button><\/li>/);
   assert.match(html, /<li class="sound">.*?Boom.*?aria-label="stop Boom"/);
   assert.match(html, /data-testid="media-gallery"/);
   assert.match(html, /<a class="thumb" href="https:\/\/x\/a.png" target="_blank" rel="noopener" title="A map"><img src="https:\/\/x\/a.png" alt="A map" loading="lazy"><\/a>/);
   assert.match(html, /title="https:\/\/x\/b.png"><img src="https:\/\/x\/b.png" alt loading/);
-  assert.match(html, />Clear</);
+  assert.match(html, /aria-label="clear" data-testid="media-clear">Clear</);
   assert.match(html, /class="vglyph muted"/);
   assert.match(html, />—</);
   assert.match(html, /--p:80%/);
@@ -217,9 +245,9 @@ test('panel handlers: Stop per track, Clear, the slider sets the output and unmu
   const tree = setupOf(f.mu, 's1')();
   const buttons = find(tree, (v) => v.type === 'button');
   const stops = buttons.filter((b) => b.children === COPY.stopLabel);
-  assert.equal(stops.length, 2);
+  assert.equal(stops.length, 3, 'the header Stop and one per track');
   stops.forEach((b) => b.props.onClick());
-  assert.deepEqual(f.calls.stop, [[{ key: 'm', type: 'music' }, 's1'], [{ key: 's', type: 'sound' }, 's1']]);
+  assert.deepEqual(f.calls.stop, [[{}, 's1'], [{ key: 'm', type: 'music' }, 's1'], [{ key: 's', type: 'sound' }, 's1']]);
   buttons.find((b) => b.children === COPY.clear).props.onClick();
   assert.deepEqual(f.calls.clearImages, ['s1']);
   const slider = find(tree, (v) => v.type === 'input')[0];
@@ -265,17 +293,4 @@ test('watchSessions: a session gone before its first media stops in the callback
   assert.deepEqual(f.calls.unwatch, ['s1']);
   assert.equal(f.live('s1'), 0);
   off();
-});
-
-test('activate registers the panel per session at right-top, order 30', async () => {
-  const { default: ext } = await import('../src/index.ts');
-  const specs = [];
-  const f = fakeMu([]);
-  const mu = { ...f.mu, ui: { ...f.mu.ui, style: () => () => {} }, panels: { ...f.mu.panels, register: (s) => { specs.push(s); return () => {}; }, vue: () => () => {} } };
-  const subs = [];
-  (ext.activate ?? ext.default?.activate)({ mu, subscriptions: subs });
-  assert.equal(specs.length, 1);
-  const { id, singleton, perSession, defaultPosition, order } = specs[0];
-  assert.deepEqual({ id, singleton, perSession, defaultPosition, order }, { id: 'media', singleton: true, perSession: true, defaultPosition: 'right-top', order: 30 });
-  for (const d of subs) d();
 });

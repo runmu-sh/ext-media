@@ -1,6 +1,5 @@
 /**
- * The pure parts of the Media panel: copy, CSS, the view helpers and the per-session watcher that auto-adds
- * the panel. Nothing here imports `vue` or touches the DOM, so tests run it under plain Node.
+ * The pure parts of the Media panel: copy, CSS, the view helpers and the per-session step (touch + note). Nothing here imports `vue` or touches the DOM, so tests run it under plain Node.
  */
 import type { Dispose, MediaImageView, MediaTrackView, MediaView, Mu } from '@muclient/sdk';
 
@@ -18,33 +17,47 @@ export const COPY = {
   vol: 'Vol',
   blocked: 'click anywhere to allow audio',
   open: 'open media',
+  /** The header [ STOP ] (Underspire's): stops everything the session plays. @since 1.1.0 */
+  stopAll: 'stop',
+  /** The gallery's [ CLEAR ] aria-label (Underspire's). @since 1.1.0 */
+  clearLabel: 'clear',
+  /** The log note when new music starts (Underspire's media note). @since 1.1.0 */
+  note: (url: string) => `♪ media: ${url}`,
+  /** The setting that turns the note on. @since 1.1.0 */
+  noteSetting: 'Note new music in the log',
+  noteHint: 'A ♪ media line with the link, each time the game starts a new piece of music',
 };
 
-/** Tokens only (R-ARCH-7). Every rule is under `.mu-media`. Ported from MediaPanel.vue's scoped CSS. */
+/**
+ * Tokens only (R-ARCH-7). Every rule is under `.ext-panel[data-ext="media"] .mu-media` (the host's panel wrapper,
+ * then the panel root). Ported from MediaPanel.vue's scoped CSS; the values are Underspire's `.media-panel`.
+ */
 export const MEDIA_CSS = `
-.mu-media { height: 100%; display: flex; flex-direction: column; overflow-y: auto; background: var(--bg-elev); box-sizing: border-box; }
-.mu-media .np { flex: none; border-bottom: 1px solid var(--accent); }
-.mu-media .hd { display: flex; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); }
-.mu-media .tag { font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; color: var(--accent-bright); }
-.mu-media .x { margin-left: auto; }
-.mu-media .tracks { list-style: none; margin: 0; padding: 8px 10px 0; display: flex; flex-direction: column; gap: 4px; font-size: .78rem; }
-.mu-media .tracks li { display: flex; align-items: center; gap: 8px; }
-.mu-media .g { color: var(--accent); }
-.mu-media .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); }
-.mu-media .k { font-size: .6rem; letter-spacing: .2em; text-transform: uppercase; color: var(--fg-faint); }
-.mu-media .empty { margin: 0; padding: 10px; color: var(--fg-faint); font-style: normal; font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; }
-.mu-media .blocked { padding-top: 0; color: var(--gold); }
-.mu-media .vol { display: flex; align-items: center; gap: 8px; padding: 6px 10px 9px; }
-.mu-media .vol .rng { flex: 1; max-width: none; }
-.mu-media .vglyph { color: var(--fg-dim); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; transition: color .12s ease; }
-.mu-media .vglyph.muted { color: var(--fg-faint); text-decoration: line-through; }
-.mu-media .vval { min-width: 2em; text-align: right; font-size: .72rem; color: var(--fg-dim); }
-.mu-media .gallery { flex: 1; }
-.mu-media .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 5px; padding: 8px 10px; }
-.mu-media .thumb { display: block; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--border-bright); background: var(--bg); transition: border-color .12s ease; }
-.mu-media .thumb:hover { border-color: var(--accent); }
-.mu-media .thumb:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: -2px; }
-.mu-media .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ext-panel[data-ext="media"] .mu-media { height: 100%; display: flex; flex-direction: column; overflow-y: auto; background: var(--bg-elev); box-sizing: border-box; }
+.ext-panel[data-ext="media"] .mu-media .np { flex: none; border-bottom: 1px solid var(--accent); }
+.ext-panel[data-ext="media"] .mu-media .hd { display: flex; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.ext-panel[data-ext="media"] .mu-media .tag { font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; color: var(--accent-bright); }
+.ext-panel[data-ext="media"] .mu-media .x { margin-left: auto; }
+.ext-panel[data-ext="media"] .mu-media .tracks { list-style: none; margin: 0; padding: 8px 10px 0; display: flex; flex-direction: column; gap: 4px; font-size: .78rem; }
+.ext-panel[data-ext="media"] .mu-media .tracks li { display: flex; align-items: center; gap: 8px; }
+.ext-panel[data-ext="media"] .mu-media .g { color: var(--accent); }
+.ext-panel[data-ext="media"] .mu-media .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); }
+.ext-panel[data-ext="media"] .mu-media .k { font-size: .6rem; letter-spacing: .2em; text-transform: uppercase; color: var(--fg-faint); }
+.ext-panel[data-ext="media"] .mu-media .empty { margin: 0; padding: 10px; color: var(--fg-faint); font-style: normal; font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; }
+.ext-panel[data-ext="media"] .mu-media .blocked { padding-top: 0; color: var(--gold); }
+.ext-panel[data-ext="media"] .mu-media .vol { display: flex; align-items: center; gap: 8px; padding: 6px 10px 9px; }
+.ext-panel[data-ext="media"] .mu-media .vol .rng { flex: 1; max-width: none; }
+.ext-panel[data-ext="media"] .mu-media .vglyph { color: var(--fg-dim); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase; transition: color .12s ease; }
+.ext-panel[data-ext="media"] .mu-media .vglyph.muted { color: var(--fg-faint); text-decoration: line-through; }
+.ext-panel[data-ext="media"] .mu-media .vval { min-width: 2em; text-align: right; font-size: .72rem; color: var(--fg-dim); }
+.ext-panel[data-ext="media"] .mu-media .gallery { flex: 1; }
+.ext-panel[data-ext="media"] .mu-media .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 5px; padding: 8px 10px; }
+.ext-panel[data-ext="media"] .mu-media .thumb { display: block; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--border-bright); background: var(--bg); transition: border-color .12s ease; }
+.ext-panel[data-ext="media"] .mu-media .thumb:hover { border-color: var(--accent); }
+.ext-panel[data-ext="media"] .mu-media .thumb:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: -2px; }
+.ext-panel[data-ext="media"] .mu-media .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ext-panel[data-ext="media"] .mu-media a.t { text-decoration: none; }
+.ext-panel[data-ext="media"] .mu-media a.t:hover, .ext-panel[data-ext="media"] .mu-media a.t:focus-visible { text-decoration: underline; color: var(--accent-bright); }
 `;
 
 /** The music first, then the sounds. */
@@ -73,8 +86,14 @@ export function volumePatch(pct: number, muted: boolean): { volume: number; mute
 /** The VOL label is struck through when muted or at 0. */
 export const isStruck = (muted: boolean, pct: number): boolean => muted || pct === 0;
 
-/** The value beside the slider: `—` when muted, else `NN%`. */
+/** The value beside the slider: `—` when muted, else `NN%`. Kept for callers; the panel shows {@link volumeValue}. */
 export const volumeText = (muted: boolean, pct: number): string => (muted ? '—' : `${pct}%`);
+
+/** The value beside the slider as Underspire shows it: the bare number, or `—` when muted. @since 1.1.0 */
+export const volumeValue = (muted: boolean, pct: number): string => (muted ? '—' : String(pct));
+
+/** A link the panel may open: http(s) only (a track's URL as Underspire's now-playing link). @since 1.1.0 */
+export const linkOf = (url: string | undefined): string | null => (typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null);
 
 /** The hover title and alt of a thumbnail. */
 export const imageTitle = (i: Pick<MediaImageView, 'url' | 'caption'>): string => i.caption || i.url;
@@ -84,12 +103,36 @@ export function hasMedia(m: MediaView | null): boolean {
   return !!m && (!!m.music || m.sounds.length > 0 || m.images.length > 0);
 }
 
+import type { SessionState } from './types.ts';
+export type { SessionState } from './types.ts';
+
+/**
+ * One media update for a session: whether to touch the panel (data arrived for it the first time) and the
+ * log note to write for music that started since the last update. The first update only seeds the music (a
+ * session that was already playing when the extension activated gets no note). @since 1.1.0
+ */
+export function step(st: SessionState, m: MediaView | null): { touch: boolean; note: string | null } {
+  const touch = !st.touched && hasMedia(m);
+  if (touch) st.touched = true;
+  const music = m?.music ? `${m.music.key}\u0000${m.music.url}` : null;
+  let note: string | null = null;
+  if (st.seeded && music && music !== st.music) {
+    const url = linkOf(m!.music!.url);
+    if (url) note = COPY.note(url);
+  }
+  st.music = music;
+  st.seeded = true;
+  return { touch, note };
+}
+
 /**
  * Watch every session's media (sessions from `mu.sessions.list()`, re-read on `switch` and on a line from a
  * session not seen yet) and call
- * `mu.panels.autoAdd(panel, sid)` the first time one plays something or shows an image. A session's watch is
- * disposed once it fired, or when the session went away (checked on every callback too); the returned Dispose
- * ends them all.
+ * `mu.panels.autoAdd(panel, sid)` the first time one plays something or shows an image.
+ A session's watch is disposed once it fired, or when the session went away (checked on every
+ * callback too); the returned Dispose ends them all.
+ * @deprecated since 1.1.0: the extension itself uses `mu.sessions.each` + `mu.panels.touch` (no `read-output`);
+ * this stays exported, unchanged, for compatibility.
  */
 export function watchSessions(mu: Pick<Mu, 'media' | 'sessions' | 'panels'>, panel = 'media'): Dispose {
   const watches = new Map<string, Dispose>();
