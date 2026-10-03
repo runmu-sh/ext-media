@@ -16,6 +16,7 @@ export const COPY = {
   volume: 'volume',
   vol: 'Vol',
   blocked: 'click anywhere to allow audio',
+  /** The ☰ Sound row's now-playing action (tooltip and accessible name). Core had this copy before SDK 1.14. */
   open: 'open media',
   /** The header [ STOP ] (Underspire's): stops everything the session plays. @since 1.1.0 */
   stopAll: 'stop',
@@ -26,6 +27,8 @@ export const COPY = {
   /** The setting that turns the note on. @since 1.1.0 */
   noteSetting: 'Note new music in the log',
   noteHint: 'A ♪ media line with the link, each time the game starts a new piece of music',
+  /** The settings page's group of shortcut rows. @since 1.2.0 */
+  keysGroup: 'Keys',
 };
 
 /**

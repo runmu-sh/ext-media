@@ -39,7 +39,8 @@ test('registers the panel, its commands, menu rows and the note setting; asks fo
   assert.equal(p.show, undefined, 'listed in Views from the start, as before');
   assert.equal(host.commands.get('media.stop').when, 'panel:media');
   assert.equal(host.commands.get('media.clear').when, 'panel:media');
-  assert.deepEqual(calls(host, 'menus.add').map(([m]) => [m.id, m.slot, m.command]), [['media.stop', 'panel:media', 'media.stop'], ['media.clear', 'panel:media', 'media.clear']]);
+  assert.deepEqual(calls(host, 'menus.add').map(([m]) => [m.id, m.slot, m.command]),
+    [['media.stop', 'panel:media', 'media.stop'], ['media.clear', 'panel:media', 'media.clear'], ['media.open', 'now-playing', undefined]]);
   assert.equal(host.setting('noteMusic'), false);
   assert.ok(host.live().includes('ui.style'));
   assert.ok(!host.live().includes('sessions.on:line'), 'no line listener (no read-output)');
@@ -94,4 +95,45 @@ test('Stop all and Clear images act on the active session', async () => {
   host.mu.commands.run('media.clear');
   assert.deepEqual(calls(host, 'media.stop'), [[{}, 's2']]);
   assert.deepEqual(calls(host, 'media.clearImages'), [['s2']]);
+});
+
+test('the now-playing action opens and focuses the Media panel; its title is the open media copy', async () => {
+  const { host } = mediaHost();
+  await host.load('src/index.ts');
+  const [row] = calls(host, 'menus.add').map(([m]) => m).filter((m) => m.slot === 'now-playing');
+  assert.equal(row.id, 'media.open');
+  assert.equal(row.title, 'open media');
+  row.run();
+  assert.deepEqual(calls(host, 'panels.open'), [['media', undefined, { focus: true }]]);
+  assert.ok(host.live().includes('menus.add'));
+  await host.unload();
+  assert.deepEqual(host.live(), []);
+});
+
+test('shortcut rows for Stop all and Clear images: unbound by default, rebind and reset', async () => {
+  const { host } = mediaHost();
+  await host.load('src/index.ts');
+  const items = host.settingsSchema.items.filter((i) => i.kind === 'shortcut');
+  assert.deepEqual(items.map((i) => [i.key, i.command]), [['keys.stop', 'media.stop'], ['keys.clear', 'media.clear']]);
+  assert.equal(host.settingsSchema.tile, undefined, 'the page stays under Settings → Extensions');
+  assert.deepEqual(host.mu.settings.get('keys.stop'), []);
+  const seen = [];
+  host.mu.settings.watch('keys.stop', (v) => seen.push(v));
+  host.mu.settings.set('keys.stop', ['Alt+S']);
+  assert.deepEqual(host.mu.settings.get('keys.stop'), ['Alt+S']);
+  host.mu.settings.set('keys.stop', null);
+  assert.deepEqual(host.mu.settings.get('keys.stop'), []);
+  assert.deepEqual(seen.slice(-2), [['Alt+S'], []]);
+  assert.deepEqual(host.errors, []);
+});
+
+test('on a host before 1.14 (now-playing slot refused) it activates without the action or the shortcut rows', async () => {
+  const { host } = mediaHost();
+  const add = host.mu.menus.add;
+  host.mu.menus.add = (spec) => { if (spec.slot === 'now-playing') throw new Error(`menus.add(${spec.id}): unknown slot "now-playing"`); return add(spec); };
+  await host.load('src/index.ts');
+  assert.deepEqual(host.errors, []);
+  assert.ok(host.panels.has('media'));
+  assert.deepEqual(host.settingsSchema.items.map((i) => i.key), ['noteMusic']);
+  assert.deepEqual(calls(host, 'menus.add').map(([m]) => m.slot), ['panel:media', 'panel:media']);
 });

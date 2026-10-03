@@ -1,6 +1,6 @@
 {
   "name": "@runmu.sh/ext-media",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "The Media panel: what is playing (music and sounds, each with Stop), the master volume and mute, and the images the game showed, from GMCP Client.Media, MSP and MXP <image>.",
   "keywords": [
     "media",
@@ -36,8 +36,8 @@
     "test": "node --experimental-strip-types --test \"tests/*.test.mjs\""
   },
   "devDependencies": {
-    "@muclient/sdk": "npm:@runmu.sh/sdk@^1.12.0",
-    "@runmu.sh/dev": "^0.2.0",
+    "@muclient/sdk": "npm:@runmu.sh/sdk@^1.14.0",
+    "@runmu.sh/dev": "^0.3.0",
     "esbuild": "^0.28.2",
     "typescript": "^5.9.0",
     "vue": "^3.5.0"

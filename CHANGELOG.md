@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- The now-playing line under the ☰ menu's Sound row opens the Media panel (tooltip "open media"). μClient 1.14 left this action to the extension.
+- The Media settings page has a Keys group with shortcut rows for **Stop all media** and **Clear images**. They edit the same bindings as Settings → Keys.
+- Built on SDK 1.14 and still runs on hosts with extension API 1.12 and 1.13. There the client opens the panel from the now-playing line itself, and the shortcut rows are left out (Settings → Keys still binds both commands).
+
 ## 1.1.0
 
 - **[ STOP ]** in the Now Playing header stops everything at once, as on Underspire. Each track keeps its own Stop.

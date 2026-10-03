@@ -17,6 +17,7 @@ var COPY = {
   volume: "volume",
   vol: "Vol",
   blocked: "click anywhere to allow audio",
+  /** The ☰ Sound row's now-playing action (tooltip and accessible name). Core had this copy before SDK 1.14. */
   open: "open media",
   /** The header [ STOP ] (Underspire's): stops everything the session plays. @since 1.1.0 */
   stopAll: "stop",
@@ -26,7 +27,9 @@ var COPY = {
   note: (url) => `\u266A media: ${url}`,
   /** The setting that turns the note on. @since 1.1.0 */
   noteSetting: "Note new music in the log",
-  noteHint: "A \u266A media line with the link, each time the game starts a new piece of music"
+  noteHint: "A \u266A media line with the link, each time the game starts a new piece of music",
+  /** The settings page's group of shortcut rows. @since 1.2.0 */
+  keysGroup: "Keys"
 };
 var MEDIA_CSS = `
 .ext-panel[data-ext="media"] .mu-media { height: 100%; display: flex; flex-direction: column; overflow-y: auto; background: var(--bg-elev); box-sizing: border-box; }
@@ -239,10 +242,6 @@ var index_default = defineExtension({
   activate(ctx) {
     const mu = ctx.mu;
     mu.ui.style(MEDIA_CSS);
-    mu.settings.define({
-      title: COPY.title,
-      items: [{ key: "noteMusic", label: COPY.noteSetting, hint: COPY.noteHint, kind: "toggle", default: false, scope: "both" }]
-    });
     mu.panels.register({
       id: "media",
       title: COPY.title,
@@ -265,6 +264,20 @@ var index_default = defineExtension({
     mu.commands.register({ id: "media.clear", title: "Clear images", group: COPY.title, when: "panel:media", run: clear });
     mu.menus.add({ id: "media.stop", slot: "panel:media", title: "Stop all", order: 10, command: "media.stop" });
     mu.menus.add({ id: "media.clear", slot: "panel:media", title: "Clear images", order: 20, command: "media.clear" });
+    let host114 = true;
+    try {
+      mu.menus.add({ id: "media.open", slot: "now-playing", title: COPY.open, run: () => mu.panels.open("media", void 0, { focus: true }) });
+    } catch {
+      host114 = false;
+    }
+    const items = [{ key: "noteMusic", label: COPY.noteSetting, hint: COPY.noteHint, kind: "toggle", default: false, scope: "both" }];
+    if (host114) {
+      items.push(
+        { key: "keys.stop", kind: "shortcut", command: "media.stop", group: COPY.keysGroup },
+        { key: "keys.clear", kind: "shortcut", command: "media.clear", group: COPY.keysGroup }
+      );
+    }
+    mu.settings.define({ title: COPY.title, items });
     mu.sessions.each((s) => {
       const st = { touched: false, music: null, seeded: false };
       return mu.media.watch((m) => {
